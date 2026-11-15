@@ -1,0 +1,23 @@
+# Secrets: never commit the real settings file
+.env
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Files the app creates while running (PDF reports, logs, counters)
+backend/storage/
+backend/evaluation/last_results.json
+
+# Node
+node_modules/
+frontend/dist/
+
+# Editors and operating system
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

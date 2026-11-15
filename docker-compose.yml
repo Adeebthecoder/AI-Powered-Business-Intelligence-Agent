@@ -1,0 +1,31 @@
+# Starts PostgreSQL in Docker.
+#
+# How to use (from the project folder, after you have created the .env file):
+#     docker compose up -d        start the database in the background
+#     docker compose down         stop it (your data is kept)
+#     docker compose down -v      stop it AND delete all data
+#
+# The administrator password and the port come from the .env file,
+# so nothing secret is written here.
+
+services:
+  db:
+    image: postgres:16
+    container_name: bi_agent_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+    ports:
+      # left side = port on your laptop (DB_PORT in .env), right side = port inside Docker
+      - "${DB_PORT}:5432"
+    volumes:
+      - bi_agent_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  bi_agent_pgdata:

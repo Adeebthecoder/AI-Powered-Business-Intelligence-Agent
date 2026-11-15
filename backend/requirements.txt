@@ -1,0 +1,35 @@
+# Python packages for the backend.
+# Install with:  pip install -r requirements.txt
+# Tested with Python 3.13. Use Python 3.11, 3.12 or 3.13.
+
+# --- web API ---
+fastapi==0.162.5
+uvicorn[standard]==0.54.0
+python-multipart==0.0.33        # needed for file uploads and the login form
+pydantic==2.14.3
+pydantic-settings==2.16.2       # reads the .env file
+
+# --- database ---
+SQLAlchemy==2.1.8
+psycopg2-binary==2.9.13         # PostgreSQL driver
+
+# --- data and machine learning ---
+pandas==3.1.1
+numpy==2.5.4
+scikit-learn==1.9.1
+openpyxl==3.1.5                 # reads Excel files
+
+# --- login security ---
+bcrypt==5.0.0                   # password hashing
+PyJWT==2.15.1                   # login tokens
+
+# --- AI and SQL safety ---
+httpx==0.28.1                   # calls the OpenRouter API
+sqlglot==30.31.0                # parses SQL so we can check it
+
+# --- PDF reports ---
+reportlab==5.1.0
+matplotlib==3.11.2              # draws the chart inside the PDF
+
+# --- tests ---
+pytest==9.2.0
