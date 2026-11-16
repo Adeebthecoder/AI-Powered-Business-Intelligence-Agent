@@ -16,6 +16,15 @@ How to run (from the backend folder, with the virtual environment active):
     python scripts/setup_database.py
 
 It is safe to run more than once.
+
+Hosted database (for example Neon):
+    python scripts/setup_database.py --hosted
+
+A hosting company gives you ONE login and ONE ready-made database, and no
+"postgres" administrator. In this mode the script logs in as the app user
+(DB_APP_USER), skips steps 1 and 3 for it, and only creates the read-only user
+and the permissions. The hosted app runs this by itself on every start (see the
+Dockerfile), so you never need to type it.
 """
 
 import getpass
@@ -119,5 +128,72 @@ def main():
     print("\nDatabase setup finished. You can now start the backend.")
 
 
+def setup_hosted():
+    """Setup for a hosted database, where the app user is the only login we are given."""
+    settings = get_settings()
+    app_user, ro_user, db_name = settings.db_app_user, settings.db_readonly_user, settings.db_name
+    print(f"Setting up the hosted PostgreSQL database '{db_name}' at {settings.db_host}")
+
+    try:
+        connection = psycopg2.connect(
+            host=settings.db_host, port=settings.db_port, dbname=db_name,
+            user=app_user, password=settings.db_app_password, connect_timeout=15,
+            sslmode="require")          # hosted databases only accept encrypted connections
+    except psycopg2.OperationalError as error:
+        sys.exit(
+            f"\nCould not log in to the hosted database as '{app_user}'.\n"
+            "Check DB_HOST, DB_NAME, DB_APP_USER and DB_APP_PASSWORD in the hosting settings.\n"
+            "They must match the connection details shown by the database provider.\n\n"
+            f"Details: {error}")
+    connection.autocommit = True
+
+    with connection.cursor() as cur:
+        # The read-only user. Its password is set again on every run, so it always
+        # matches DB_READONLY_PASSWORD.
+        cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (ro_user,))
+        action = "ALTER" if cur.fetchone() else "CREATE"
+        try:
+            cur.execute(sql.SQL("{action} ROLE {name} WITH LOGIN PASSWORD {password}").format(
+                action=sql.SQL(action), name=sql.Identifier(ro_user),
+                password=sql.Literal(settings.db_readonly_password)))
+        except psycopg2.Error as error:
+            sys.exit(
+                f"\nCould not {action.lower()} the read-only user '{ro_user}'.\n"
+                f"The login '{app_user}' must be allowed to create users (on Neon, use the\n"
+                "role that Neon made for you), and DB_READONLY_PASSWORD must be a long\n"
+                "random value.\n\n"
+                f"Details: {error}")
+        print(f"  user '{ro_user}': {'updated' if action == 'ALTER' else 'created'}")
+
+        ident = {"ro": sql.Identifier(ro_user), "db": sql.Identifier(db_name),
+                 "schema": sql.Identifier(DATASET_SCHEMA)}
+        statements = [
+            # The app user owns the schema that holds the uploaded dataset tables.
+            "CREATE SCHEMA IF NOT EXISTS {schema}",
+            # The read-only user starts with nothing at all...
+            "REVOKE ALL ON DATABASE {db} FROM PUBLIC",
+            "REVOKE ALL ON SCHEMA public FROM PUBLIC",
+            "REVOKE ALL ON SCHEMA public FROM {ro}",
+            "REVOKE ALL ON ALL TABLES IN SCHEMA public FROM {ro}",
+            # ...and then gets only: connect, and read tables in the datasets schema.
+            "GRANT CONNECT ON DATABASE {db} TO {ro}",
+            "GRANT USAGE ON SCHEMA {schema} TO {ro}",
+            "GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO {ro}",
+            # Tables the app user creates later are readable by the read-only user too.
+            "ALTER DEFAULT PRIVILEGES IN SCHEMA {schema} GRANT SELECT ON TABLES TO {ro}",
+            # Extra safety nets on the read-only user itself.
+            "ALTER ROLE {ro} SET default_transaction_read_only = on",
+            "ALTER ROLE {ro} SET search_path = {schema}",
+        ]
+        for statement in statements:
+            cur.execute(sql.SQL(statement).format(**ident))
+    connection.close()
+    print(f"  schema '{DATASET_SCHEMA}' and permissions: done")
+    print("\nHosted database setup finished.")
+
+
 if __name__ == "__main__":
-    main()
+    if "--hosted" in sys.argv[1:]:
+        setup_hosted()
+    else:
+        main()
