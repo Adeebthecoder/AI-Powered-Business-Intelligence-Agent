@@ -6,6 +6,11 @@
 
 const TOKEN_KEY = "bi_agent_token";
 
+// Address of the backend. Empty on a laptop (the Vite dev server forwards /api to
+// the backend). On a hosted site, set VITE_API_URL to the backend address, for
+// example https://bi-agent.onrender.com (no slash at the end).
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+
 export const CREDIT_LINE =
   "Developed by Bhumika Panwar and Mohd. Adeeb Siddiqui, MCA 3rd Semester Minor Project";
 
@@ -51,10 +56,13 @@ export async function api(path, options = {}) {
 
   let response;
   try {
-    response = await fetch(path, { ...options, headers, body });
+    response = await fetch(`${API_BASE}${path}`, { ...options, headers, body });
   } catch {
+    const onLaptop = ["localhost", "127.0.0.1"].includes(window.location.hostname);
     throw new Error(
-      "Cannot reach the backend. Check that it is running on http://localhost:8000."
+      onLaptop
+        ? "Cannot reach the backend. Check that it is running on http://localhost:8000."
+        : "Cannot reach the server. Check your internet connection and try again."
     );
   }
 
